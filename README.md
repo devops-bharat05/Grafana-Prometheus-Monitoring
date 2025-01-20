@@ -128,8 +128,6 @@ Monitor CPU usage percentage across the default namespace:
 ```
 sum (rate (container_cpu_usage_seconds_total{namespace="default"}[1m])) / sum (machine_cpu_cores) * 100
 ```
-![Alt text](img/Prometheus01)
-
 
 ### Memory Usage
 Track memory usage by pod in the default namespace:
@@ -151,9 +149,12 @@ sum(rate(container_network_transmit_bytes_total{namespace="default"}[5m])) by (p
 ## Access Points
 
 - Prometheus: http://localhost:9090
+![Alt text](img/Prometheus01)  
 - Grafana: http://localhost:31000
+![Alt text](img/Grafana)  
 - Voting Application: http://localhost:5000
-- Results Application: http://localhost:5001
+![Alt text](img/app)  
+ 
 
 ## Default Credentials
 
