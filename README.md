@@ -1,58 +1,139 @@
-# K8s Kind Voting App
+# Voting Application with Grafana & Prometheus Monitoring
 
-A comprehensive guide for setting up a Kubernetes cluster using Kind on an AWS EC2 instance, installing and configuring Argo CD, and deploying applications using Argo CD.
+This project demonstrates how to deploy a voting application on Kubernetes with monitoring capabilities using Grafana and Prometheus.
 
-## Overview
+## Prerequisites
 
-This guide covers the steps to:
-- Launch an AWS EC2 instance.
-- Install Docker and Kind.
-- Create a Kubernetes cluster using Kind.
-- Install and access kubectl.
-- Set up the Kubernetes Dashboard.
-- Install and configure Argo CD.
-- Connect and manage your Kubernetes cluster with Argo CD.
+- Ubuntu or similar Linux distribution
+- Docker installed
+- kubectl installed
+- Helm installed
+- Kind (Kubernetes in Docker) installed
 
+## Installation Steps
 
-## Architecture
+### 1. Clone the Repository
 
-![Architecture diagram](k8s-kind-voting-app.png)
+```bash
+git clone https://github.com/devops-bharat05/Voting-Application-Grafana-Prometheus.git
+cd Voting-Application-Grafana-Prometheus
+```
 
-## Observability
+### 2. Setup Kubernetes Cluster using Kind
 
-![Grafana diagram](grafana.png)
-![Prometheus diagram](prometheus.png)
+Navigate to the kind-cluster directory and set up the cluster:
 
-* A front-end web app in [Python](/vote) which lets you vote between two options
-* A [Redis](https://hub.docker.com/_/redis/) which collects new votes
-* A [.NET](/worker/) worker which consumes votes and stores them in…
-* A [Postgres](https://hub.docker.com/_/postgres/) database backed by a Docker volume
-* A [Node.js](/result) web app which shows the results of the voting in real time
+```bash
+cd kind-cluster
+chmod +700 *.sh
+./install_kind.sh
+kind create cluster --config=config.yml --name=my-cluster
+```
 
+### 3. Deploy the Voting Application
 
+Navigate to the k8s-specifications directory and deploy the application:
 
-## Resume Description
+```bash
+cd ../k8s-specifications
+kubectl apply -f .
+```
 
-### Project Title: 
+Verify the deployment:
+```bash
+kubectl get pods -A
+kubectl get all
+```
 
-Automated Deployment of Scalable Applications on AWS EC2 with Kubernetes and Argo CD
+### 4. Set up Monitoring Stack
 
-### Description: 
+1. Add required Helm repositories:
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add stable https://charts.helm.sh/stable
+helm repo update
+```
 
-Led the deployment of scalable applications on AWS EC2 using Kubernetes and Argo CD for streamlined management and continuous integration. Orchestrated deployments via Kubernetes dashboard, ensuring efficient resource utilization and seamless scaling.
+2. Create monitoring namespace:
+```bash
+kubectl create namespace monitoring
+```
 
-### Key Technologies:
+3. Install Prometheus and Grafana using Helm:
+```bash
+helm install kind-prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --set prometheus.service.nodePort=30000 \
+  --set prometheus.service.type=NodePort \
+  --set grafana.service.nodePort=31000 \
+  --set grafana.service.type=NodePort \
+  --set alertmanager.service.nodePort=32000 \
+  --set alertmanager.service.type=NodePort \
+  --set prometheus-node-exporter.service.nodePort=32001 \
+  --set prometheus-node-exporter.service.type=NodePort
+```
 
-* AWS EC2: Infrastructure hosting for Kubernetes clusters.
-* Kubernetes Dashboard: User-friendly interface for managing containerized applications.
-* Argo CD: Continuous Delivery tool for automated application deployments.
+### 5. Access the Applications
 
-### Achievements:
+Set up port forwarding to access the services:
 
-Implemented Kubernetes dashboard for visual management of containerized applications on AWS EC2 instances.
-Utilized Argo CD for automated deployment pipelines, enhancing deployment efficiency by 60%.
-Achieved seamless scaling and high availability, supporting 99.9% uptime for critical applications.
-This project description emphasizes your role in leveraging AWS EC2, Kubernetes, and Argo CD to optimize application deployment and management processes effectively.
+```bash
+# For Prometheus
+kubectl port-forward svc/kind-prometheus-kube-prome-prometheus -n monitoring 9090:9090 --address=0.0.0.0
 
+# For Grafana
+kubectl port-forward svc/kind-prometheus-grafana -n monitoring 31000:80 --address=0.0.0.0
 
+# For Voting Application
+kubectl port-forward svc/vote 5000:5000 --address=0.0.0.0
+```
 
+### 6. Access Points
+
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:31000
+- Voting Application: http://localhost:5000
+- Results Application: http://localhost:31001
+
+### 7. Service Details
+
+```bash
+NAME                                       TYPE        CLUSTER-IP      PORT(S)
+alertmanager-operated                      ClusterIP   None           9093/TCP,9094/TCP,9094/UDP
+kind-prometheus-grafana                    NodePort    10.96.252.27   80:31000/TCP
+kind-prometheus-kube-prome-alertmanager    NodePort    10.96.215.204  9093:32000/TCP,8080:30118/TCP
+kind-prometheus-kube-prome-prometheus      NodePort    10.96.231.63   9090:30000/TCP,8080:30307/TCP
+kind-prometheus-prometheus-node-exporter   NodePort    10.96.150.16   9100:32001/TCP
+```
+
+## Monitoring Stack Components
+
+- **Prometheus**: For metrics collection and storage
+- **Grafana**: For metrics visualization and dashboarding
+- **AlertManager**: For handling alerts
+- **Node Exporter**: For collecting host metrics
+- **Kube State Metrics**: For collecting Kubernetes object metrics
+
+## Default Credentials
+
+- **Grafana**:
+  - Username: admin
+  - Password: prom-operator
+
+## Troubleshooting
+
+If you encounter port conflicts while setting up port forwarding, ensure that:
+1. No other services are using the required ports
+2. Previous port-forward processes are terminated
+3. You have the necessary permissions to bind to the specified ports
+
+## Application Architecture
+
+The voting application consists of:
+- Frontend voting interface
+- Redis for temporary storage
+- Worker for processing votes
+- PostgreSQL for permanent storage
+- Results interface for displaying voting results
+
+Each component is deployed as a separate Kubernetes deployment with corresponding services.
