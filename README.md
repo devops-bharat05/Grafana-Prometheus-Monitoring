@@ -18,6 +18,7 @@ Create a 3-node Kubernetes cluster:
 ```bash
 kind create cluster --config=config.yml
 ```
+![Alt text](img/kind)
 
 Verify cluster setup:
 ```bash
