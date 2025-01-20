@@ -1,6 +1,7 @@
 # Voting Application with Grafana & Prometheus Monitoring
 
 This project demonstrates how to deploy a voting application on Kubernetes with monitoring capabilities using Grafana and Prometheus.
+![Alt text](img/Grafana-Prometheus)
 
 ## Prerequisites
 
