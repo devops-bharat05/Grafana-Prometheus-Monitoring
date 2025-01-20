@@ -128,7 +128,7 @@ Monitor CPU usage percentage across the default namespace:
 ```
 sum (rate (container_cpu_usage_seconds_total{namespace="default"}[1m])) / sum (machine_cpu_cores) * 100
 ```
-![Alt text](img/Screenshot 2025-01-20 191256.png)
+![Alt text](img/Prometheus01)
 
 
 ### Memory Usage
