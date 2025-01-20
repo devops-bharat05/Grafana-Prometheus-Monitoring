@@ -10,56 +10,90 @@ This project demonstrates how to deploy a voting application on Kubernetes with 
 - Helm installed
 - Kind (Kubernetes in Docker) installed
 
-## Installation Steps
+## Detailed Installation Steps
 
-### 1. Clone the Repository
+### 1. Setting Up Kubernetes Cluster with Kind
 
+Create a 3-node Kubernetes cluster:
 ```bash
-git clone https://github.com/devops-bharat05/Voting-Application-Grafana-Prometheus.git
-cd Voting-Application-Grafana-Prometheus
+kind create cluster --config=config.yml
 ```
 
-### 2. Setup Kubernetes Cluster using Kind
+Verify cluster setup:
+```bash
+kubectl cluster-info --context kind-kind
+kubectl get nodes
+kind get clusters
+```
 
-Navigate to the kind-cluster directory and set up the cluster:
+### 2. Installing kubectl
 
 ```bash
-cd kind-cluster
-chmod +700 *.sh
-./install_kind.sh
-kind create cluster --config=config.yml --name=my-cluster
+curl -o kubectl https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/kubectl
+chmod +x ./kubectl
+sudo mv ./kubectl /usr/local/bin
+kubectl version --short --client
 ```
 
 ### 3. Deploy the Voting Application
 
-Navigate to the k8s-specifications directory and deploy the application:
-
+Clone the repository:
 ```bash
-cd ../k8s-specifications
-kubectl apply -f .
+git clone https://github.com/dockersamples/example-voting-app.git
+cd example-voting-app/
 ```
 
-Verify the deployment:
+Deploy the application:
 ```bash
-kubectl get pods -A
+kubectl apply -f k8s-specifications/
+```
+
+Verify deployment:
+```bash
 kubectl get all
 ```
 
-### 4. Set up Monitoring Stack
+Set up port forwarding:
+```bash
+kubectl port-forward service/vote 5000:5000 --address=0.0.0.0 &
+kubectl port-forward service/result 5001:5001 --address=0.0.0.0 &
+```
 
-1. Add required Helm repositories:
+### 4. Install Kubernetes Dashboard (Optional)
+
+Deploy the dashboard:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+```
+
+Create admin token:
+```bash
+kubectl -n kubernetes-dashboard create token admin-user
+```
+
+### 5. Install Helm
+
+```bash
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+```
+
+### 6. Set up Monitoring Stack
+
+Add Helm repositories:
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add stable https://charts.helm.sh/stable
 helm repo update
 ```
 
-2. Create monitoring namespace:
+Create monitoring namespace:
 ```bash
 kubectl create namespace monitoring
 ```
 
-3. Install Prometheus and Grafana using Helm:
+Install Prometheus stack:
 ```bash
 helm install kind-prometheus prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
@@ -73,38 +107,71 @@ helm install kind-prometheus prometheus-community/kube-prometheus-stack \
   --set prometheus-node-exporter.service.type=NodePort
 ```
 
-### 5. Access the Applications
-
-Set up port forwarding to access the services:
-
+Verify installation:
 ```bash
-# For Prometheus
-kubectl port-forward svc/kind-prometheus-kube-prome-prometheus -n monitoring 9090:9090 --address=0.0.0.0
-
-# For Grafana
-kubectl port-forward svc/kind-prometheus-grafana -n monitoring 31000:80 --address=0.0.0.0
-
-# For Voting Application
-kubectl port-forward svc/vote 5000:5000 --address=0.0.0.0
+kubectl get svc -n monitoring
+kubectl get namespace
 ```
 
-### 6. Access Points
+### 7. Access Monitoring Tools
+
+Set up port forwarding:
+```bash
+kubectl port-forward svc/kind-prometheus-kube-prome-prometheus -n monitoring 9090:9090 --address=0.0.0.0 &
+kubectl port-forward svc/kind-prometheus-grafana -n monitoring 31000:80 --address=0.0.0.0 &
+```
+
+## Prometheus Queries for Monitoring
+
+### CPU Usage
+Monitor CPU usage percentage across the default namespace:
+```
+sum (rate (container_cpu_usage_seconds_total{namespace="default"}[1m])) / sum (machine_cpu_cores) * 100
+```
+
+### Memory Usage
+Track memory usage by pod in the default namespace:
+```
+sum (container_memory_usage_bytes{namespace="default"}) by (pod)
+```
+
+### Network Traffic
+Monitor network receive traffic (incoming):
+```
+sum(rate(container_network_receive_bytes_total{namespace="default"}[5m])) by (pod)
+```
+
+Monitor network transmit traffic (outgoing):
+```
+sum(rate(container_network_transmit_bytes_total{namespace="default"}[5m])) by (pod)
+```
+
+## Access Points
 
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:31000
 - Voting Application: http://localhost:5000
-- Results Application: http://localhost:31001
+- Results Application: http://localhost:5001
 
-### 7. Service Details
+## Default Credentials
 
+- **Grafana**:
+  - Username: admin
+  - Password: prom-operator
+
+## Cleanup
+
+To delete the Kind cluster:
 ```bash
-NAME                                       TYPE        CLUSTER-IP      PORT(S)
-alertmanager-operated                      ClusterIP   None           9093/TCP,9094/TCP,9094/UDP
-kind-prometheus-grafana                    NodePort    10.96.252.27   80:31000/TCP
-kind-prometheus-kube-prome-alertmanager    NodePort    10.96.215.204  9093:32000/TCP,8080:30118/TCP
-kind-prometheus-kube-prome-prometheus      NodePort    10.96.231.63   9090:30000/TCP,8080:30307/TCP
-kind-prometheus-prometheus-node-exporter   NodePort    10.96.150.16   9100:32001/TCP
+kind delete cluster --name=kind
 ```
+
+## Troubleshooting
+
+If you encounter port conflicts while setting up port forwarding, ensure that:
+1. No other services are using the required ports
+2. Previous port-forward processes are terminated
+3. You have the necessary permissions to bind to the specified ports
 
 ## Monitoring Stack Components
 
@@ -113,19 +180,6 @@ kind-prometheus-prometheus-node-exporter   NodePort    10.96.150.16   9100:32001
 - **AlertManager**: For handling alerts
 - **Node Exporter**: For collecting host metrics
 - **Kube State Metrics**: For collecting Kubernetes object metrics
-
-## Default Credentials
-
-- **Grafana**:
-  - Username: admin
-  - Password: prom-operator
-
-## Troubleshooting
-
-If you encounter port conflicts while setting up port forwarding, ensure that:
-1. No other services are using the required ports
-2. Previous port-forward processes are terminated
-3. You have the necessary permissions to bind to the specified ports
 
 ## Application Architecture
 
